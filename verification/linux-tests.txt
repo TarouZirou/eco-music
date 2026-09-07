@@ -1,0 +1,29 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running unittests src/lib.rs (target/debug/deps/eco_music-3b60b1c07250ec3f)
+running 12 tests
+test extract::tests::empty_list_reports_failure ... ok
+test bookmarks::tests::corrupt_file_returns_empty ... ok
+test extract::tests::parse_falls_back_to_id_for_missing_title ... ok
+test extract::tests::parse_filters_invalid_entries ... ok
+test shuffle::tests::ordered_without_shuffle_keeps_order ... ok
+test bookmarks::tests::atomic_bookmarks_roundtrip ... ok
+test bookmarks::tests::invalid_rows_are_skipped_but_valid_kept ... ok
+test shuffle::tests::selected_first_preserves_duplicate_occurrences ... ok
+test shuffle::tests::shuffle_is_permutation_and_leaves_source ... ok
+test urls::tests::canonical_url ... ok
+test urls::tests::reject_untrusted_inputs ... ok
+test extract::tests::unlimited_playlist_keeps_every_entry ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running unittests src/main.rs (target/debug/deps/eco_music-6fdc6886e9743c4f)
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/process.rs (target/debug/deps/process-82c6922c0ed8c19a)
+running 4 tests
+test missing_binary_reports_notfound ... ok
+test cancel_stops_extractor_child ... ok
+test ipc_commands_events_and_clean_exit ... ok
+test timeout_kills_extractor_child ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+   Doc-tests eco_music
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

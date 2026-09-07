@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'dev.sapi.ecomusic'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'dev.sapi.ecomusic'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+    packaging { resources { excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*'] } }
+}
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.6.1'
+    implementation 'androidx.media3:media3-session:1.6.1'
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
+    testImplementation 'junit:junit:4.13.2'
+}

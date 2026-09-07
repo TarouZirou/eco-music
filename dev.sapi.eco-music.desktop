@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Eco Music
+Comment=音声専用の軽量プレーヤー
+Exec=eco-music
+Icon=audio-x-generic
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;youtube;audio;playlist;
+StartupWMClass=eco-music
