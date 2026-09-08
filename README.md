@@ -57,6 +57,19 @@ makepkg -si
 アプリケーションメニューの「Eco Music」から起動できます。バイナリは`/usr/bin/eco-music`、
 デスクトップエントリは`/usr/share/applications/dev.sapi.eco-music.desktop`に配置されます。
 
+### ビルド済みバイナリで導入（コンパイル不要）
+
+GitHubの[Releases](https://github.com/TarouZirou/eco-music/releases)から
+`eco-music-0.2.0-x86_64` を取得し、実行権限を付けて起動します。
+依存パッケージ（`mpv` `yt-dlp` `noto-fonts-cjk`）は別途導入してください。
+
+```sh
+chmod +x eco-music-0.2.0-x86_64
+./eco-music-0.2.0-x86_64
+```
+
+コンパイル不要の`eco-music-bin`用PKGBUILDも `eco-music-bin/PKGBUILD` に同梱しています。
+
 ### 使い方
 
 1. YouTube Musicで再生リストの共有URLをコピーします。

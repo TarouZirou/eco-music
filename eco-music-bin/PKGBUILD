@@ -1,0 +1,32 @@
+# Maintainer: TarouZirou <zinnnnnnnnnnnn8@gmail.com>
+# ビルド済みバイナリ版。コンパイル不要で導入できる。
+
+pkgname=eco-music-bin
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='YouTube Musicの公開・限定公開再生リストを聴く、音声専用の軽量プレーヤー（ビルド済みバイナリ）'
+arch=('x86_64')
+url='https://github.com/TarouZirou/eco-music'
+license=('GPL-3.0-or-later')
+provides=('eco-music')
+conflicts=('eco-music')
+depends=(
+  'mpv'
+  'yt-dlp'
+  'noto-fonts-cjk'   # 日本語UI表示用のフォールバックフォント
+  'hicolor-icon-theme'
+)
+optdepends=(
+  'deno: yt-dlpのEJSによる署名解決が必要な場合'
+)
+source=("eco-music-$pkgver-x86_64::https://github.com/TarouZirou/eco-music/releases/download/v$pkgver/eco-music-$pkgver-x86_64"
+        "eco-music-$pkgver.tar.gz::https://github.com/TarouZirou/eco-music/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('11c3380d3bc60527fca741cb45bbb0315c5f7a7ac7b893058fae2d568ae0b54e'
+            '3990c8b9672c0021a320a14d4066ea67aa494c492bd930ce782e354eca07b2f3')
+
+package() {
+  install -Dm0755 "eco-music-$pkgver-x86_64" "$pkgdir/usr/bin/eco-music"
+  install -Dm0644 "eco-music-$pkgver/dev.sapi.eco-music.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm0644 "eco-music-$pkgver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"
+  install -Dm0644 "eco-music-$pkgver/README.md" -t "$pkgdir/usr/share/doc/$pkgname/"
+}
