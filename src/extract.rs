@@ -126,7 +126,10 @@ pub fn run_extractor(
 			return Err(ExtractError::Cancelled);
 		}
 		match child.try_wait() {
-			Ok(Some(status)) => break status,
+			Ok(Some(status)) if out_thread.is_finished() && err_thread.is_finished() => {
+				break status;
+			}
+			Ok(Some(_)) => {}
 			Ok(None) => {}
 			Err(_) => {
 				kill_group(&mut child, true);
@@ -143,6 +146,8 @@ pub fn run_extractor(
 		}
 		std::thread::sleep(Duration::from_millis(100));
 	};
+	// EOF does not guarantee that all descendants have exited.
+	kill_group(&mut child, true);
 	let stdout = out_thread.join().unwrap_or_default();
 	let _ = err_thread.join();
 	if status.success() {
@@ -165,7 +170,16 @@ fn kill_group(child: &mut std::process::Child, immediate: bool) {
 		}
 	}
 	let deadline = Instant::now() + Duration::from_secs(1);
-	while child.try_wait().map(|s| s.is_none()).unwrap_or(false) {
+	loop {
+		if immediate {
+			break;
+		}
+		let exited = child.try_wait().map(|s| s.is_some()).unwrap_or(false);
+		// A descendant can retain the pipes after the group leader exits.
+		let group_alive = unsafe { libc::kill(-pid, 0) == 0 };
+		if exited && !group_alive {
+			break;
+		}
 		if Instant::now() >= deadline {
 			unsafe {
 				libc::kill(-pid, libc::SIGKILL);
@@ -221,6 +235,49 @@ pub fn parse_playlist(json: &str) -> Result<(String, Vec<Track>), ExtractError> 
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn timeout_covers_inherited_stdout_and_stderr() {
+		for redirect in ["2>/dev/null", ">/dev/null"] {
+			let mut cmd = Command::new("sh");
+			cmd.args(["-c", &format!("trap '' TERM; sleep 5 {redirect} & exit 0")]);
+			let start = Instant::now();
+			let result = run_extractor(
+				&mut cmd,
+				&AtomicBool::new(false),
+				Duration::from_millis(200),
+			);
+			assert!(matches!(result, Err(ExtractError::Timeout)));
+			assert!(start.elapsed() < Duration::from_secs(3));
+		}
+	}
+
+	#[test]
+	fn cancellation_covers_inherited_pipes() {
+		let cancel = AtomicBool::new(false);
+		std::thread::scope(|scope| {
+			scope.spawn(|| {
+				std::thread::sleep(Duration::from_millis(300));
+				cancel.store(true, Ordering::Relaxed);
+			});
+			let mut cmd = Command::new("sh");
+			cmd.args(["-c", "trap '' TERM; sleep 5 & exit 0"]);
+			let start = Instant::now();
+			let result = run_extractor(&mut cmd, &cancel, Duration::from_secs(10));
+			assert!(matches!(result, Err(ExtractError::Cancelled)));
+			assert!(start.elapsed() < Duration::from_secs(3));
+		});
+	}
+
+	#[test]
+	fn collects_output_after_leader_exits() {
+		let mut cmd = Command::new("sh");
+		cmd.args(["-c", "(sleep 0.2; printf late) & exit 0"]);
+		assert_eq!(
+			run_extractor(&mut cmd, &AtomicBool::new(false), Duration::from_secs(3)).unwrap(),
+			"late"
+		);
+	}
 
 	#[test]
 	fn parse_filters_invalid_entries() {

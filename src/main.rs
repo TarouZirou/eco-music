@@ -128,6 +128,7 @@ struct EcoMusic {
 	ready: bool,
 	generation: u64,
 	cancel: Arc<AtomicBool>,
+	extraction_thread: Option<std::thread::JoinHandle<()>>,
 	selected: Option<usize>,
 	now: String,
 	status: String,
@@ -163,6 +164,7 @@ impl EcoMusic {
 			ready: false,
 			generation: 0,
 			cancel: Arc::new(AtomicBool::new(false)),
+			extraction_thread: None,
 			selected: None,
 			now: "再生リストURLを入力してください".into(),
 			status: "起動中…".into(),
@@ -177,6 +179,9 @@ impl EcoMusic {
 		self.cancel.store(true, Ordering::SeqCst);
 		if let Some(player) = self.player.as_mut() {
 			player.close();
+		}
+		if let Some(thread) = self.extraction_thread.take() {
+			let _ = thread.join();
 		}
 	}
 
@@ -201,9 +206,13 @@ impl EcoMusic {
 		self.generation += 1;
 		let token = self.generation;
 		self.status = "再生リストを取得中…（全件取得）".into();
+		// The completion event can arrive just before the previous worker exits.
+		if let Some(thread) = self.extraction_thread.take() {
+			let _ = thread.join();
+		}
 		self.cancel.store(false, Ordering::SeqCst);
 		let (tx, cancel, ctx) = (self.event_tx.clone(), self.cancel.clone(), self.ctx.clone());
-		std::thread::spawn(move || {
+		self.extraction_thread = Some(std::thread::spawn(move || {
 			let result = extract::load_playlist(&url, &cancel);
 			let event = match result {
 				Ok((title, tracks)) => EcoEvent::Loaded {
@@ -217,7 +226,7 @@ impl EcoMusic {
 			if tx.send(event).is_ok() {
 				ctx.request_repaint();
 			}
-		});
+		}));
 	}
 
 	fn play(&mut self, selected: bool) {
@@ -290,6 +299,7 @@ impl EcoMusic {
 			.len()
 			.saturating_sub(bookmarks::MAX_BOOKMARKS);
 		self.bookmarks.drain(0..excess);
+		self.bookmark_sel = self.bookmarks.len() - 1;
 		if let Err(e) = bookmarks::save(&playlists_path(), &self.bookmarks) {
 			self.error_popup = Some(format!("保存エラー: {e}"));
 		}
@@ -412,9 +422,7 @@ impl eframe::App for EcoMusic {
 			if !self.exiting {
 				self.exiting = true;
 				self.shutdown();
-				ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
 			}
-			ctx.send_viewport_cmd(egui::ViewportCommand::Close);
 			return;
 		}
 		self.drain_events();
@@ -422,6 +430,12 @@ impl eframe::App for EcoMusic {
 	}
 
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+		self.show_ui(ui);
+	}
+}
+
+impl EcoMusic {
+	fn show_ui(&mut self, ui: &mut egui::Ui) {
 		if let Some(message) = self.error_popup.clone() {
 			egui::Window::new("エラー")
 				.collapsible(false)
@@ -441,6 +455,41 @@ impl eframe::App for EcoMusic {
 		let mut play_clicked = false;
 		let mut play_selected = false;
 
+		egui::Panel::bottom("playback").show(ui, |ui| {
+			ui.horizontal_wrapped(|ui| {
+				if ui
+					.add_enabled(
+						self.ready && !self.tracks.is_empty(),
+						egui::Button::new("再生"),
+					)
+					.clicked()
+				{
+					play_clicked = true;
+				}
+				ui.add_enabled_ui(self.ready, |ui| {
+					if ui.button("前へ").clicked() {
+						self.cmd(&[json!("playlist-prev"), json!("weak")]);
+					}
+					if ui.button("再生 / 一時停止").clicked() {
+						self.cmd(&[json!("cycle"), json!("pause")]);
+					}
+					if ui.button("次へ").clicked() {
+						self.cmd(&[json!("playlist-next"), json!("weak")]);
+					}
+					if ui.button("停止").clicked() {
+						self.cmd(&[json!("stop")]);
+					}
+				});
+			});
+			ui.add(egui::Label::new(&self.now).truncate());
+			ui.label(format!(
+				"{} / {}",
+				fmt_clock(self.position),
+				fmt_clock(self.duration)
+			));
+			ui.add(egui::Label::new(&self.status).truncate());
+		});
+
 		egui::CentralPanel::default().show(ui, |ui| {
 			ui.heading("Eco Music");
 			ui.label("音声のみ · 公開 / 限定公開の再生リスト");
@@ -452,14 +501,16 @@ impl eframe::App for EcoMusic {
 				.map(|b| b.title.clone())
 				.unwrap_or_else(|| "登録済みリストを選択".into());
 			let mut pick = self.bookmark_sel;
-			egui::ComboBox::from_id_salt("bookmarks")
-				.selected_text(selected_text)
-				.width(320.0)
-				.show_ui(ui, |ui| {
-					for (i, b) in self.bookmarks.iter().enumerate() {
-						ui.selectable_value(&mut pick, i, &b.title);
-					}
-				});
+			ui.add_enabled_ui(!self.busy, |ui| {
+				egui::ComboBox::from_id_salt("bookmarks")
+					.selected_text(selected_text)
+					.width(320.0)
+					.show_ui(ui, |ui| {
+						for (i, b) in self.bookmarks.iter().enumerate() {
+							ui.selectable_value(&mut pick, i, &b.title);
+						}
+					});
+			});
 			if pick != self.bookmark_sel && pick < self.bookmarks.len() {
 				self.bookmark_sel = pick;
 				self.url = self.bookmarks[pick].url.clone();
@@ -503,7 +554,8 @@ impl eframe::App for EcoMusic {
 				.show_rows(ui, row_height, self.tracks.len(), |ui, range| {
 					for i in range {
 						let is_selected = selected == Some(i);
-						let response = ui.selectable_label(is_selected, &self.tracks[i].title);
+						let response =
+							ui.add(egui::Button::selectable(is_selected, &self.tracks[i].title).truncate());
 						if response.clicked() {
 							self.selected = Some(i);
 						}
@@ -513,41 +565,6 @@ impl eframe::App for EcoMusic {
 						}
 					}
 				});
-			ui.add_space(6.0);
-
-			ui.horizontal(|ui| {
-				if ui
-					.add_enabled(
-						self.ready && !self.tracks.is_empty(),
-						egui::Button::new("再生"),
-					)
-					.clicked()
-				{
-					play_clicked = true;
-				}
-				if ui.button("前へ").clicked() {
-					self.cmd(&[json!("playlist-prev"), json!("weak")]);
-				}
-				if ui.button("再生 / 一時停止").clicked() {
-					self.cmd(&[json!("cycle"), json!("pause")]);
-				}
-				if ui.button("次へ").clicked() {
-					self.cmd(&[json!("playlist-next"), json!("weak")]);
-				}
-				if ui.button("停止").clicked() {
-					self.cmd(&[json!("stop")]);
-				}
-			});
-
-			ui.add_space(10.0);
-			ui.label(&self.now);
-			ui.label(format!(
-				"{} / {}",
-				fmt_clock(self.position),
-				fmt_clock(self.duration)
-			));
-			ui.add_space(4.0);
-			ui.label(&self.status);
 		});
 
 		if play_clicked {
@@ -562,5 +579,200 @@ impl eframe::App for EcoMusic {
 impl Drop for EcoMusic {
 	fn drop(&mut self) {
 		self.shutdown();
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn fixture(ctx: egui::Context, track_count: usize) -> EcoMusic {
+		let (event_tx, events) = mpsc::channel();
+		let title = "A very long playlist and track title ".repeat(100);
+		EcoMusic {
+			ctx,
+			event_tx,
+			events,
+			player: None,
+			bookmarks: vec![Bookmark {
+				title: title.clone(),
+				url: "https://www.youtube.com/playlist?list=PLfixture".into(),
+			}],
+			bookmark_sel: 0,
+			url: String::new(),
+			tracks: (0..track_count)
+				.map(|i| Track {
+					title: format!("Track {i}: {title}"),
+					url: format!("https://www.youtube.com/watch?v={i:011}"),
+				})
+				.collect(),
+			loaded_url: String::new(),
+			loaded_title: title.clone(),
+			shuffle: true,
+			repeat: false,
+			busy: false,
+			ready: true,
+			generation: 0,
+			cancel: Arc::new(AtomicBool::new(false)),
+			extraction_thread: None,
+			selected: None,
+			now: title.clone(),
+			status: title,
+			position: 12.0,
+			duration: 345.0,
+			error_popup: None,
+			exiting: false,
+		}
+	}
+
+	fn render(app: &mut EcoMusic, size: egui::Vec2, events: Vec<egui::Event>) -> egui::FullOutput {
+		let mut output = app.ctx.clone().run_ui(
+			egui::RawInput {
+				screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+				events,
+				..Default::default()
+			},
+			|ui| app.show_ui(ui),
+		);
+		output.textures_delta.clear();
+		output
+	}
+
+	#[test]
+	fn transport_stays_visible_with_empty_and_large_playlists() {
+		for size in [egui::vec2(440.0, 470.0), egui::vec2(640.0, 610.0)] {
+			for count in [0, 5000] {
+				for ready in [false, true] {
+					for font_size in [13.0, 24.0] {
+						let ctx = egui::Context::default();
+						ctx.global_style_mut(|style| {
+							style.override_font_id = Some(egui::FontId::proportional(font_size));
+						});
+						let mut app = fixture(ctx, count);
+						app.ready = ready;
+						// Bottom panels use the previous frame's measured height.
+						render(&mut app, size, vec![]);
+						render(&mut app, size, vec![]);
+						for _ in 0..3 {
+							let output = render(&mut app, size, vec![]);
+							let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+							let mut rows = Vec::new();
+							for label in ["再生", "前へ", "再生 / 一時停止", "次へ", "停止"] {
+								let matches: Vec<_> = output
+									.shapes
+									.iter()
+									.filter_map(|shape| {
+										if let egui::epaint::Shape::Text(text) = &shape.shape {
+											(text.galley.text() == label).then_some((shape.clip_rect, text))
+										} else {
+											None
+										}
+									})
+									.collect();
+								assert_eq!(
+									matches.len(),
+									1,
+									"missing/duplicate {label}: {size:?}, {count}, {ready}, {font_size}"
+								);
+								let (clip, text) = matches[0];
+								let bounds = text.galley.rect.translate(text.pos.to_vec2());
+								assert!(
+									viewport.contains_rect(bounds) && clip.contains_rect(bounds),
+									"clipped {label}: {bounds:?}, clip {clip:?}, viewport {viewport:?}, {count}, {ready}, {font_size}"
+								);
+								rows.push(bounds.top());
+							}
+							if size.x == 440.0 && font_size == 24.0 {
+								assert!(
+									rows.iter().any(|y| *y > rows[0] + font_size),
+									"buttons did not wrap: {rows:?}"
+								);
+							}
+							let track_labels = output.shapes.iter().filter(|shape| {
+								matches!(&shape.shape, egui::epaint::Shape::Text(text) if text.galley.text().starts_with("Track "))
+							}).count();
+							if count > 0 {
+								assert!(
+									(1..50).contains(&track_labels),
+									"rows not virtualized: {track_labels}"
+								);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	#[test]
+	fn clicking_a_virtual_row_selects_it_and_loading_clears_selection() {
+		let mut app = fixture(egui::Context::default(), 5000);
+		let size = egui::vec2(440.0, 470.0);
+		render(&mut app, size, vec![]);
+		render(&mut app, size, vec![]);
+		let output = render(&mut app, size, vec![]);
+		let pos = output
+			.shapes
+			.iter()
+			.find_map(|shape| {
+				if let egui::epaint::Shape::Text(text) = &shape.shape
+					&& text.galley.text().starts_with("Track 1:")
+				{
+					return Some(text.pos + egui::vec2(10.0, 5.0));
+				}
+				None
+			})
+			.expect("second virtual row is visible");
+		for pressed in [true, false] {
+			render(
+				&mut app,
+				size,
+				vec![
+					egui::Event::PointerMoved(pos),
+					egui::Event::PointerButton {
+						pos,
+						button: egui::PointerButton::Primary,
+						pressed,
+						modifiers: egui::Modifiers::NONE,
+					},
+				],
+			);
+		}
+		assert_eq!(app.selected, Some(1));
+		app.handle_event(EcoEvent::Loaded {
+			token: app.generation,
+			url: app.bookmarks[0].url.clone(),
+			title: "Replacement".into(),
+			tracks: vec![],
+		});
+		assert_eq!(app.selected, None);
+	}
+
+	#[test]
+	fn save_rejects_unloaded_url_without_changing_bookmarks() {
+		let mut app = fixture(egui::Context::default(), 0);
+		app.url = app.bookmarks[0].url.clone();
+		app.save();
+		assert!(app.error_popup.is_some());
+		assert_eq!(app.bookmarks.len(), 1);
+		assert_eq!(app.bookmark_sel, 0);
+	}
+
+	#[test]
+	fn shutdown_cancels_and_joins_extraction() {
+		let mut app = fixture(egui::Context::default(), 0);
+		let cancel = app.cancel.clone();
+		let completed = Arc::new(AtomicBool::new(false));
+		let worker_completed = completed.clone();
+		app.extraction_thread = Some(std::thread::spawn(move || {
+			while !cancel.load(Ordering::SeqCst) {
+				std::thread::sleep(Duration::from_millis(1));
+			}
+			worker_completed.store(true, Ordering::SeqCst);
+		}));
+		app.shutdown();
+		assert!(completed.load(Ordering::SeqCst));
+		assert!(app.extraction_thread.is_none());
+		app.shutdown();
 	}
 }

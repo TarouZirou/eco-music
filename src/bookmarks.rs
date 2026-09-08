@@ -3,9 +3,9 @@
 
 use crate::urls;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, Permissions};
-use std::io;
-use std::os::unix::fs::PermissionsExt;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 pub const MAX_BOOKMARKS: usize = 200;
@@ -24,10 +24,30 @@ pub fn save(path: &Path, rows: &[Bookmark]) -> io::Result<()> {
 	}
 	let json = serde_json::to_string_pretty(rows)
 		.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-	let tmp = path.with_extension("tmp");
-	fs::write(&tmp, json)?;
-	fs::set_permissions(&tmp, Permissions::from_mode(0o600))?;
-	fs::rename(&tmp, path)
+	let (tmp, mut file) = loop {
+		let tmp = path.with_file_name(format!(
+			".eco-bookmarks-{:032x}.tmp",
+			rand::random::<u128>()
+		));
+		match OpenOptions::new()
+			.write(true)
+			.create_new(true)
+			.mode(0o600)
+			.open(&tmp)
+		{
+			Ok(file) => break (tmp, file),
+			Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+			Err(e) => return Err(e),
+		}
+	};
+	let result = (|| {
+		file.write_all(json.as_bytes())?;
+		fs::rename(&tmp, path)
+	})();
+	if result.is_err() {
+		let _ = fs::remove_file(&tmp);
+	}
+	result
 }
 
 /// 読み込みに失敗した場合は空のリストを返す。
@@ -57,6 +77,59 @@ pub fn read(path: &Path) -> Vec<Bookmark> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::os::unix::fs::{PermissionsExt, symlink};
+
+	#[test]
+	fn concurrent_saves_are_complete_and_leave_no_tempfiles() {
+		let dir = std::env::temp_dir().join(format!("eco-concurrent-{:032x}", rand::random::<u128>()));
+		fs::create_dir(&dir).unwrap();
+		let path = dir.join("bookmarks.json");
+		let barrier = std::sync::Barrier::new(8);
+		std::thread::scope(|scope| {
+			for i in 0..8 {
+				let (path, barrier) = (&path, &barrier);
+				scope.spawn(move || {
+					let rows = vec![
+						Bookmark {
+							title: format!("writer {i}"),
+							url: "https://www.youtube.com/playlist?list=PL123".into(),
+						};
+						MAX_BOOKMARKS
+					];
+					barrier.wait();
+					for _ in 0..20 {
+						save(path, &rows).unwrap();
+						let saved = read(path);
+						assert_eq!(saved.len(), MAX_BOOKMARKS);
+						assert!(saved.iter().all(|row| row == &saved[0]));
+						assert_eq!(
+							fs::metadata(path).unwrap().permissions().mode() & 0o777,
+							0o600
+						);
+					}
+				});
+			}
+		});
+		assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+		fs::remove_dir_all(dir).unwrap();
+	}
+
+	#[test]
+	fn save_ignores_old_temp_symlink_and_cleans_up_failed_rename() {
+		let dir = std::env::temp_dir().join(format!("eco-temp-{:032x}", rand::random::<u128>()));
+		fs::create_dir(&dir).unwrap();
+		let path = dir.join("bookmarks.json");
+		let victim = dir.join("victim");
+		fs::write(&victim, "untouched").unwrap();
+		symlink(&victim, path.with_extension("tmp")).unwrap();
+		save(&path, &[]).unwrap();
+		assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
+		fs::remove_file(&path).unwrap();
+		fs::create_dir(&path).unwrap();
+		assert!(save(&path, &[]).is_err());
+		assert_eq!(fs::read_dir(&dir).unwrap().count(), 3);
+		fs::remove_dir_all(dir).unwrap();
+	}
 
 	#[test]
 	fn atomic_bookmarks_roundtrip() {
