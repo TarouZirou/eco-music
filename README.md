@@ -104,11 +104,17 @@ URLとリスト名のみを永続化し、認証Cookie・音声ファイルは�
 Android 8.0（API 26）以上を対象にしたネイティブアプリです。Termuxは不要です。
 APKの提供・検証状況は`VALIDATION.md`を確認してください。
 
-1. APKが付属している場合は端末で開き、使用するインストーラーの「この提供元のアプリを許可」を有効にしてインストールします。
+1. GitHubの[Releases](https://github.com/TarouZirou/eco-music/releases)から
+   `eco-music-0.2.1.apk` を取得し、端末で開いてインストールします。
+   提供元の許可を求められたら、使用するインストーラーについて有効にします。
 2. アプリで再生リストURLを入力→「取得」→必要なら「登録」→「再生」。
 3. YouTube Musicの共有先としてEco Musicを選ぶこともできます。
 4. 画面消灯時もサービスが再生を担当します。通知から再生を操作できます。
 5. 「停止」はキューと再生を停止します。OSによる強制停止後の自動再開は行いません。
+
+旧バージョン（デバッグ署名の0.1.0）が入っている場合は署名が異なるため、
+先にアンインストールしてからインストールしてください。
+配布APKは専用鍵で署名しており、以後の更新は上書きインストールできます。
 
 バックグラウンドで停止する場合、端末のアプリ別バッテリー設定でEco Musicの
 バックグラウンド実行を許可してください。ColorOSなどの省電力制御による終了は、
@@ -125,7 +131,8 @@ cd android
 ```
 
 Gradle Wrapperがない環境では、Gradle 8.11.1で同じタスクを実行できます。
-出力：`app/build/outputs/apk/debug/app-debug.apk`。
+出力：`app/build/outputs/apk/release/app-release-unsigned.apk`（リリースは未署名のため、
+Build Toolsの`zipalign`と`apksigner`で配置・署名が必要です）。
 ネットワーク上のGoogle Maven / Maven Central / JitPackから依存物を取得します。
 依存バージョンは`app/build.gradle`で固定しています。
 YouTube側の変更で抽出できなくなった場合、NewPipeExtractorの修正版に更新して再ビルドします。

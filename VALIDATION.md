@@ -13,7 +13,13 @@
 - `eco-music-bin 0.2.1-1`: 公開済みReleaseから取得、SHA-256検証、`makepkg --noconfirm` によるパッケージ作成を通過。
 - 0.2.1のシステムへのインストールは管理者認証が必要なため未実施。
 - 実際の音声再生とネイティブウィンドウを閉じる操作の組み合わせは未検証。
-- Androidは変更なし。以下のLinuxビルド・インストール記録は0.2.0時点。
+- Android 0.2.1（versionCode 3）: JDK 17・Gradle 8.11.1・AGP 8.9.2・SDK 35で
+  `:app:assembleRelease :app:testReleaseUnitTest :app:lintRelease` を実行。
+  ビルド成功、単体テスト5件通過、Lintエラー0・警告8。
+- リリースAPKは専用署名鍵（RSA 4096）でv2/v3署名し、`apksigner verify` 通過。
+  実機でのインストール・音出しは未検証。
+- 旧デバッグ署名（0.1.0検証APK）とは署名鍵が異なるため、上書き更新には一度アンインストールが必要。
+- 以下のLinuxビルド・インストール記録は0.2.0時点。
 
 ## Linux（Rust実装）
 
