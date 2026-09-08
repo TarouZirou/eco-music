@@ -1,4 +1,4 @@
-# Eco Music 0.2.0
+# Eco Music 0.2.1
 
 YouTube Musicの公開・限定公開再生リストを登録して聴く、Linux / Android用の実装です。
 ブラウザエンジン・動画表示・サムネイルを使わず、音声再生を主眼に設計しています。
@@ -60,15 +60,20 @@ makepkg -si
 ### ビルド済みバイナリで導入（コンパイル不要）
 
 GitHubの[Releases](https://github.com/TarouZirou/eco-music/releases)から
-`eco-music-0.2.0-x86_64` を取得し、実行権限を付けて起動します。
+`eco-music-0.2.1-x86_64` を取得し、実行権限を付けて起動します。
 依存パッケージ（`mpv` `yt-dlp` `noto-fonts-cjk`）は別途導入してください。
 
 ```sh
-chmod +x eco-music-0.2.0-x86_64
-./eco-music-0.2.0-x86_64
+chmod +x eco-music-0.2.1-x86_64
+./eco-music-0.2.1-x86_64
 ```
 
 コンパイル不要の`eco-music-bin`用PKGBUILDも `eco-music-bin/PKGBUILD` に同梱しています。
+
+更新時は、アプリを終了し、最新の `main` ブランチを取得してから
+`eco-music-bin/` で `makepkg -si` を実行してください。
+タグ内のパッケージ定義ではなく、公開後にチェックサムを確定した `main` の定義を使用します。
+登録済みリストは更新後も保持されます。
 
 ### 使い方
 
