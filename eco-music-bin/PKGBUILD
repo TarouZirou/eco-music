@@ -19,6 +19,7 @@ depends=(
 optdepends=(
   'deno: yt-dlpのEJSによる署名解決が必要な場合'
 )
+options=('!debug')  # 配布バイナリはstrip済みのためデバッグ分割しない
 source=("eco-music-$pkgver-x86_64::https://github.com/TarouZirou/eco-music/releases/download/v$pkgver/eco-music-$pkgver-x86_64"
         "eco-music-$pkgver.tar.gz::https://github.com/TarouZirou/eco-music/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('11c3380d3bc60527fca741cb45bbb0315c5f7a7ac7b893058fae2d568ae0b54e'
