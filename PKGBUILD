@@ -19,7 +19,7 @@ optdepends=(
   'deno: yt-dlpのEJSによる署名解決が必要な場合'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/TarouZirou/eco-music/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # タグ作成後に実効値へ置き換える
+sha256sums=('3990c8b9672c0021a320a14d4066ea67aa494c492bd930ce782e354eca07b2f3')
 
 prepare() {
   cd "$pkgname-$pkgver"
