@@ -10,6 +10,8 @@
 - `cargo test`: 30件通過。最小画面・5000曲・拡大文字でのヘッドレスUI検証を含む。
 - `cargo clippy --all-targets -- -D warnings`: 通過。
 - `cargo build --release --locked` と `cargo test --release --locked`: 通過（30件）。
+- `eco-music-bin 0.2.1-1`: 公開済みReleaseから取得、SHA-256検証、`makepkg --noconfirm` によるパッケージ作成を通過。
+- 0.2.1のシステムへのインストールは管理者認証が必要なため未実施。
 - 実際の音声再生とネイティブウィンドウを閉じる操作の組み合わせは未検証。
 - Androidは変更なし。以下のLinuxビルド・インストール記録は0.2.0時点。
 

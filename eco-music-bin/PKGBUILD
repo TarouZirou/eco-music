@@ -2,7 +2,7 @@
 # ビルド済みバイナリ版。コンパイル不要で導入できる。
 
 pkgname=eco-music-bin
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc='YouTube Musicの公開・限定公開再生リストを聴く、音声専用の軽量プレーヤー（ビルド済みバイナリ）'
 arch=('x86_64')
@@ -22,8 +22,8 @@ optdepends=(
 options=('!debug')  # 配布バイナリはstrip済みのためデバッグ分割しない
 source=("eco-music-$pkgver-x86_64::https://github.com/TarouZirou/eco-music/releases/download/v$pkgver/eco-music-$pkgver-x86_64"
         "eco-music-$pkgver.tar.gz::https://github.com/TarouZirou/eco-music/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('11c3380d3bc60527fca741cb45bbb0315c5f7a7ac7b893058fae2d568ae0b54e'
-            '3990c8b9672c0021a320a14d4066ea67aa494c492bd930ce782e354eca07b2f3')
+sha256sums=('0363bd09a9d5e86817503e9a4d0598c0ee707808bb976049f7ecf587428a58cb'
+            '586217cbf2ce6a4967d541a814322dafd0e637def1229a8e77b557fcab1e375e')
 
 package() {
   install -Dm0755 "eco-music-$pkgver-x86_64" "$pkgdir/usr/bin/eco-music"

@@ -2,7 +2,7 @@
 # Contributor: TarouZirou <zinnnnnnnnnnnn8@gmail.com>
 
 pkgname=eco-music
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc='YouTube Musicの公開・限定公開再生リストを聴く、音声専用の軽量プレーヤー（Rust / egui UI + mpv IPC）'
 arch=('x86_64' 'aarch64')
@@ -19,7 +19,7 @@ optdepends=(
   'deno: yt-dlpのEJSによる署名解決が必要な場合'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/TarouZirou/eco-music/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('3990c8b9672c0021a320a14d4066ea67aa494c492bd930ce782e354eca07b2f3')
+sha256sums=('586217cbf2ce6a4967d541a814322dafd0e637def1229a8e77b557fcab1e375e')
 
 prepare() {
   cd "$pkgname-$pkgver"
